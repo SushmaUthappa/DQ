@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SU-DQ Tool</title>
+<meta name="description" content="SU-DQ Tool — a free browser-based data quality and SQL analysis tool. Import CSV files, build table relationships with LEFT JOINs, and run SQL checks for completeness, uniqueness, integrity, conformity, consistency, and relevancy.">
+<meta name="keywords" content="data quality tool, SQL data analysis, CSV join tool, data profiling, data validation, completeness check, referential integrity, data consistency check">
+<meta property="og:title" content="SU-DQ Tool — Data Quality & SQL Analysis">
+<meta property="og:description" content="Upload CSVs, build joins, and run real SQL data quality checks right in your browser.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E14;
+    --panel:#11151D;
+    --panel-2:#161C26;
+    --border:#232A36;
+    --text:#E8EDF4;
+    --muted:#8B96A5;
+    --accent:#5EEAD4;
+    --accent-dim:#1F4A45;
+    --sky:#7DD3FC;
+    --pass:#4ADE80;
+    --warn:#FBBF24;
+    --fail:#FB7185;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#2A323F;border-radius:4px;}
+  code,.mono{font-family:'JetBrains Mono',ui-monospace,monospace;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0;}
+  .app{max-width:1180px;margin:0 auto;padding:28px 24px 60px;}
+
+  /* ---- header / pipeline signature ---- */
+  .header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:22px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{width:38px;height:30px;border-radius:7px;background:linear-gradient(140deg,var(--accent),var(--sky));display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;color:#06231f;font-size:13px;}
+  .brand h1{font-size:19px;letter-spacing:.2px;}
+  .brand p{margin:1px 0 0;color:var(--muted);font-size:12px;}
+
+  .pipeline{display:flex;align-items:center;gap:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 16px;}
+  .pstep{display:flex;align-items:center;gap:8px;padding:0 14px;position:relative;}
+  .pstep:not(:last-child)::after{content:'';position:absolute;right:-1px;top:50%;width:26px;height:1px;background:var(--border);}
+  .pdot{width:7px;height:7px;border-radius:50%;background:#2A323F;flex-shrink:0;transition:.2s;}
+  .pstep.active .pdot{background:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+  .pstep.done .pdot{background:var(--pass);}
+  .plabel{font-size:11px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:.3px;}
+  .pstep.active .plabel{color:var(--text);}
+
+  /* ---- tabs ---- */
+  .tabs{display:flex;gap:6px;margin:22px 0 18px;border-bottom:1px solid var(--border);}
+  .tab{padding:10px 16px;font-family:'Space Grotesk';font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;display:flex;align-items:center;gap:7px;}
+  .tab .n{width:18px;height:18px;border-radius:5px;background:var(--panel-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);}
+  .tab.active{color:var(--text);border-bottom-color:var(--accent);}
+  .tab.active .n{background:var(--accent);color:#06231f;border-color:var(--accent);}
+  .tab.locked{opacity:.4;cursor:not-allowed;}
+
+  .panel{display:none;}
+  .panel.show{display:block;}
+
+  /* ---- generic ---- */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+  .card h3{font-size:14px;margin-bottom:4px;}
+  .card .sub{color:var(--muted);font-size:12px;margin-bottom:14px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+  label{font-size:11px;color:var(--muted);display:block;margin-bottom:5px;font-family:'Space Grotesk';letter-spacing:.2px;}
+  select,input[type=text]{width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:8px;font-size:13px;font-family:'Inter';}
+  select:focus,input:focus{outline:none;border-color:var(--accent);}
+  .field{margin-bottom:12px;}
+  .btn{background:var(--accent);color:#06231f;border:none;padding:9px 16px;border-radius:8px;font-family:'Space Grotesk';font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .btn:hover{filter:brightness(1.08);}
+  .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{display:inline-flex;align-items:center;gap:5px;background:var(--panel-2);border:1px solid var(--border);padding:3px 9px;border-radius:20px;font-size:11px;color:var(--muted);font-family:'JetBrains Mono';}
+
+  /* ---- dropzone ---- */
+  .dropzone{border:1.5px dashed var(--border);border-radius:12px;padding:34px 20px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel-2);}
+  .dropzone:hover,.dropzone.drag{border-color:var(--accent);background:#101a18;}
+  .dropzone .icon{font-size:26px;margin-bottom:8px;}
+  .dropzone .t1{font-family:'Space Grotesk';font-weight:600;font-size:14px;}
+  .dropzone .t2{color:var(--muted);font-size:12px;margin-top:4px;}
+
+  /* ---- table cards ---- */
+  .tlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px;}
+  .tcard{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:13px;}
+  .tcard .nm{font-family:'JetBrains Mono';font-size:13px;color:var(--accent);font-weight:600;word-break:break-all;}
+  .tcard .meta{color:var(--muted);font-size:11px;margin-top:5px;}
+  .tcard .cols{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;}
+  .chip{background:#0e1722;border:1px solid var(--border);font-family:'JetBrains Mono';font-size:10px;color:#9fb0c0;padding:2px 6px;border-radius:5px;}
+
+  /* ---- sql box ---- */
+  .sqlbox{background:#0A0D13;border:1px solid var(--border);border-radius:9px;padding:13px 15px;font-family:'JetBrains Mono';font-size:12.2px;line-height:1.65;color:#cfe8e2;white-space:pre-wrap;overflow-x:auto;margin-top:10px;}
+  .sqlbox .kw{color:var(--sky);}
+
+  /* ---- results table ---- */
+  .resultwrap{overflow:auto;max-height:340px;border:1px solid var(--border);border-radius:9px;margin-top:10px;}
+  table.rtable{border-collapse:collapse;width:100%;font-family:'JetBrains Mono';font-size:12px;}
+  table.rtable th{background:var(--panel-2);color:var(--muted);text-align:left;padding:7px 10px;position:sticky;top:0;border-bottom:1px solid var(--border);white-space:nowrap;}
+  table.rtable td{padding:6px 10px;border-bottom:1px solid #1a212c;white-space:nowrap;color:#cfd8e3;}
+  table.rtable tr:hover td{background:#121826;}
+
+  /* ---- score badges ---- */
+  .scorebar{display:flex;align-items:center;gap:14px;margin-top:14px;}
+  .scoreval{font-family:'Space Grotesk';font-size:30px;font-weight:700;}
+  .scoremeta{font-size:11px;color:var(--muted);}
+  .barouter{flex:1;height:7px;background:#1a212c;border-radius:6px;overflow:hidden;}
+  .barinner{height:100%;border-radius:6px;}
+  .badge{font-size:10.5px;font-family:'Space Grotesk';font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:.3px;}
+
+  /* ---- check cards ---- */
+  .checkhead{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .checkhead .tag{font-family:'JetBrains Mono';font-size:10px;color:var(--accent);background:var(--accent-dim);padding:3px 8px;border-radius:5px;letter-spacing:.5px;}
+
+  /* ---- dashboard radar ---- */
+  .dashtop{display:grid;grid-template-columns:300px 1fr;gap:20px;}
+  .overall{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;}
+  .overall .big{font-family:'Space Grotesk';font-weight:700;font-size:52px;line-height:1;}
+  .overall .lbl{color:var(--muted);font-size:12px;margin-top:6px;font-family:'Space Grotesk';letter-spacing:.4px;}
+  .dimrow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #1a212c;}
+  .dimrow:last-child{border-bottom:none;}
+  .dimrow .dname{width:150px;font-family:'Space Grotesk';font-size:13px;}
+  .dimrow .dval{width:46px;text-align:right;font-family:'JetBrains Mono';font-size:13px;}
+  .empty{color:var(--muted);font-size:12.5px;padding:30px 0;text-align:center;}
+  .hint{color:var(--muted);font-size:11.5px;margin-top:8px;line-height:1.5;}
+  .row-gap{margin-top:18px;}
+  .smallbtn{font-size:11px;padding:5px 10px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="brand">
+      <div class="brand-mark">SU</div>
+      <div>
+        <h1>SU-DQ Tool</h1>
+        <p>Import flat files → model a relationship → validate with real SQL, in your browser</p>
+      </div>
+    </div>
+    <div class="pipeline" id="pipeline"></div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-tab="import"><span class="n">1</span>Import data</div>
+    <div class="tab locked" data-tab="join"><span class="n">2</span>Build relationship</div>
+    <div class="tab locked" data-tab="checks"><span class="n">3</span>Run validations</div>
+    <div class="tab locked" data-tab="dash"><span class="n">4</span>Quality dashboard</div>
+  </div>
+
+  <!-- ===================== TAB 1: IMPORT ===================== -->
+  <div class="panel show" id="panel-import">
+    <div class="card">
+      <h3>Upload flat files</h3>
+      <div class="sub">Drop 2–6 CSV files. Each becomes its own SQL table — column names and table names are auto‑sanitized for SQLite.</div>
+      <div class="dropzone" id="dropzone">
+        <div class="icon">⇪</div>
+        <div class="t1">Click to choose files, or drag CSVs here</div>
+        <div class="t2">.csv only · parsed and loaded into an in-browser SQLite database</div>
+      </div>
+      <input type="file" id="fileInput" accept=".csv" multiple style="display:none">
+      <div id="loadStatus" class="hint"></div>
+    </div>
+
+    <div class="card" id="tablesCard" style="display:none;">
+      <h3>Loaded tables</h3>
+      <div class="sub">Verify row counts and columns before modeling a relationship.</div>
+      <div class="tlist" id="tableList"></div>
+      <div class="row-gap">
+        <button class="btn" id="goJoinBtn">Continue to relationship builder →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TAB 2: JOIN ===================== -->
+  <div class="panel" id="panel-join">
+    <div class="card">
+      <h3>Build a relationship between two tables</h3>
+      <div class="sub">Pick a left and right table and the keys that connect them. This generates a real LEFT OUTER JOIN.</div>
+      <div class="grid2">
+        <div>
+          <div class="field"><label>LEFT TABLE (A)</label><select id="selTableA"></select></div>
+          <div class="field"><label>JOIN KEY — TABLE A</label><select id="selKeyA"></select></div>
+        </div>
+        <div>
+          <div class="field"><label>RIGHT TABLE (B)</label><select id="selTableB"></select></div>
+          <div class="field"><label>JOIN KEY — TABLE B</label><select id="selKeyB"></select></div>
+        </div>
+      </div>
+      <button class="btn" id="buildJoinBtn">Build LEFT OUTER JOIN</button>
+      <div id="joinSqlWrap" style="display:none;">
+        <div class="sqlbox" id="joinSql"></div>
+        <div class="resultwrap" id="joinResultWrap"></div>
+        <div class="hint" id="joinMeta"></div>
+        <button class="btn row-gap" id="goChecksBtn">Continue to validations →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TAB 3: CHECKS ===================== -->
+  <div class="panel" id="panel-checks">
+
+    <div class="card">
+      <div class="checkhead"><h3>1 · Completeness</h3><span class="tag">NULL / BLANK SCAN</span></div>
+      <div class="sub">Counts missing or blank values across every column of a chosen table.</div>
+      <div class="grid3">
+        <div class="field"><label>TABLE</label><select id="comp_table"></select></div>
+      </div>
+      <button class="btn smallbtn" data-check="completeness">Run check</button>
+      <div class="out" id="out_completeness"></div>
+    </div>
+
+    <div class="card">
+      <div class="checkhead"><h3>2 · Uniqueness</h3><span class="tag">DUPLICATE SCAN</span></div>
+      <div class="sub">Groups by a key column to surface duplicate values that should be unique.</div>
+      <div class="grid3">
+        <div class="field"><label>TABLE</label><select id="uniq_table"></select></div>
+        <div class="field"><label>KEY COLUMN</label><select id="uniq_col"></select></div>
+      </div>
+      <button class="btn smallbtn" data-check="uniqueness">Run check</button>
+      <div class="out" id="out_uniqueness"></div>
+    </div>
+
+    <div class="card">
+      <div class="checkhead"><h3>3 · Integrity</h3><span class="tag">REFERENTIAL / ORPHAN SCAN</span></div>
+      <div class="sub">Uses your join keys: rows in the left table with no matching row in the right table.</div>
+      <button class="btn smallbtn" data-check="integrity">Run check</button>
+      <div class="hint" id="integrityHint"></div>
+      <div class="out" id="out_integrity"></div>
+    </div>
+
+    <div class="card">
+      <div class="checkhead"><h3>4 · Conformity</h3><span class="tag">FORMAT / PATTERN SCAN</span></div>
+      <div class="sub">Checks that values in a column conform to an expected format.</div>
+      <div class="grid3">
+        <div class="field"><label>TABLE</label><select id="conf_table"></select></div>
+        <div class="field"><label>COLUMN</label><select id="conf_col"></select></div>
+        <div class="field"><label>EXPECTED FORMAT</label>
+          <select id="conf_pattern">
+            <option value="email">Email address</option>
+            <option value="date_iso">Date (YYYY-MM-DD)</option>
+            <option value="numeric">Numeric only</option>
+            <option value="alpha">Alphabetic only</option>
+            <option value="custom">Custom GLOB pattern</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="conf_custom_wrap" style="display:none;max-width:300px;"><label>CUSTOM GLOB</label><input type="text" id="conf_custom" placeholder="e.g. ABC-[0-9][0-9][0-9]"></div>
+      <button class="btn smallbtn" data-check="conformity">Run check</button>
+      <div class="out" id="out_conformity"></div>
+    </div>
+
+    <div class="card">
+      <div class="checkhead"><h3>5 · Consistency</h3><span class="tag">CROSS-TABLE COMPARISON</span></div>
+      <div class="sub">For rows matched on your join key, compares a column from A against a column from B.</div>
+      <div class="grid2">
+        <div class="field"><label id="consA_lbl">COLUMN IN A</label><select id="cons_colA"></select></div>
+        <div class="field"><label id="consB_lbl">COLUMN IN B</label><select id="cons_colB"></select></div>
+      </div>
+      <button class="btn smallbtn" data-check="consistency">Run check</button>
+      <div class="out" id="out_consistency"></div>
+    </div>
+
+    <div class="card">
+      <div class="checkhead"><h3>6 · Relevancy</h3><span class="tag">COLUMN UTILIZATION SCAN</span></div>
+      <div class="sub">Flags columns that are mostly empty (below the threshold) — low-relevancy / low-value fields.</div>
+      <div class="grid3">
+        <div class="field"><label>TABLE</label><select id="rel_table"></select></div>
+        <div class="field"><label>POPULATION THRESHOLD %</label><input type="text" id="rel_threshold" value="10"></div>
+      </div>
+      <button class="btn smallbtn" data-check="relevancy">Run check</button>
+      <div class="out" id="out_relevancy"></div>
+    </div>
+
+    <button class="btn" id="goDashBtn">View quality dashboard →</button>
+  </div>
+
+  <!-- ===================== TAB 4: DASHBOARD ===================== -->
+  <div class="panel" id="panel-dash">
+    <div class="card">
+      <h3>Data quality scorecard</h3>
+      <div class="sub" id="dashSub">Run checks in the previous tab to populate this dashboard.</div>
+      <div class="dashtop">
+        <div class="overall">
+          <div class="big" id="overallScore">—</div>
+          <div class="lbl">OVERALL SCORE</div>
+        </div>
+        <svg id="radar" viewBox="0 0 320 280" style="width:100%;max-width:340px;"></svg>
+      </div>
+      <div class="row-gap" id="dimList"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script>
+/* =========================================================================
+   STATE
+========================================================================= */
+let SQLLib, db;
+const state = {
+  tables: {},       // name -> {columns:[...], rowCount, fileName}
+  join: null,       // {tableA, tableB, keyA, keyB}
+  scores: {}        // dimension -> {score, label}
+};
+const DIM_LABELS = {
+  completeness:'Completeness', uniqueness:'Uniqueness', integrity:'Integrity',
+  conformity:'Conformity', consistency:'Consistency', relevancy:'Relevancy'
+};
+
+/* =========================================================================
+   INIT
+========================================================================= */
+initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}` })
+  .then(sql => { SQLLib = sql; db = new sql.Database(); setStatus('SQLite engine ready. Drop your CSV files in.'); })
+  .catch(err => { setStatus('Could not load the SQL engine — check your network/connection and reload. (' + err.message + ')', true); });
+
+function setStatus(msg, isError){
+  const el = document.getElementById('loadStatus');
+  el.textContent = msg;
+  el.style.color = isError ? 'var(--fail)' : 'var(--muted)';
+}
+
+/* =========================================================================
+   IDENT HELPERS
+========================================================================= */
+function sanitizeIdent(s){
+  let x = String(s).trim().replace(/[^a-zA-Z0-9_]/g,'_');
+  if(/^[0-9]/.test(x)) x = '_' + x;
+  if(!x) x = 'col';
+  return x;
+}
+function qid(s){ return '"' + String(s).replace(/"/g,'""') + '"'; }
+
+/* =========================================================================
+   FILE LOADING
+========================================================================= */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', ()=> fileInput.click());
+dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e=> handleFiles(e.target.files));
+
+async function handleFiles(fileList){
+  if(!db){ setStatus('SQL engine still starting — try again in a second.', true); return; }
+  const files = Array.from(fileList).filter(f=>/\.csv$/i.test(f.name));
+  if(!files.length){ setStatus('No .csv files found in that selection.', true); return; }
+  setStatus('Parsing ' + files.length + ' file(s)…');
+  for(const file of files){
+    try{ await loadCsvFile(file); } catch(err){ setStatus('Failed on ' + file.name + ': ' + err.message, true); }
+  }
+  setStatus('Loaded ' + Object.keys(state.tables).length + ' table(s) total.');
+  renderTables();
+  refreshAllSelectors();
+  updatePipeline();
+}
+
+function loadCsvFile(file){
+  return new Promise((resolve, reject)=>{
+    Papa.parse(file, {
+      header:true, skipEmptyLines:true,
+      complete: (results)=>{
+        try{
+          const rawName = file.name.replace(/\.csv$/i,'');
+          let tableName = sanitizeIdent(rawName);
+          let base = tableName, suffix = 1;
+          while(state.tables[tableName]) tableName = base + '_' + (suffix++);
+
+          const rawFields = results.meta.fields || [];
+          const seen = {};
+          const cols = rawFields.map(f=>{
+            let c = sanitizeIdent(f); let i=1; const b=c;
+            while(seen[c]){ c = b + '_' + (i++); }
+            seen[c]=true; return c;
+          });
+
+          const colDefs = cols.map(c=> qid(c) + ' TEXT').join(', ');
+          db.run('DROP TABLE IF EXISTS ' + qid(tableName) + ';');
+          db.run('CREATE TABLE ' + qid(tableName) + ' (' + colDefs + ');');
+          db.run('BEGIN TRANSACTION;');
+          const stmt = db.prepare('INSERT INTO ' + qid(tableName) + ' VALUES (' + cols.map(()=> '?').join(',') + ');');
+          for(const row of results.data){
+            const vals = cols.map((c, idx)=>{
+              const origKey = rawFields[idx];
+              const v = row[origKey];
+              return (v===undefined || v===null) ? null : String(v);
+            });
+            stmt.run(vals);
+          }
+          stmt.free();
+          db.run('COMMIT;');
+
+          state.tables[tableName] = { columns: cols, rowCount: results.data.length, fileName: file.name };
+          resolve();
+        } catch(err){ reject(err); }
+      },
+      error: (err)=> reject(err)
+    });
+  });
+}
+
+/* =========================================================================
+   QUERY HELPER
+========================================================================= */
+function runQuery(sql){
+  const res = db.exec(sql);
+  if(!res.length) return { columns:[], rows:[] };
+  return { columns: res[0].columns, rows: res[0].values };
+}
+function scalar(sql){
+  const r = runQuery(sql);
+  return r.rows.length ? r.rows[0][0] : 0;
+}
+
+/* =========================================================================
+   RENDER: TABLE CARDS
+========================================================================= */
+function renderTables(){
+  const card = document.getElementById('tablesCard');
+  const list = document.getElementById('tableList');
+  const names = Object.keys(state.tables);
+  if(!names.length){ card.style.display='none'; return; }
+  card.style.display='block';
+  list.innerHTML = names.map(n=>{
+    const t = state.tables[n];
+    const chips = t.columns.slice(0,8).map(c=>'<span class="chip">'+c+'</span>').join('') + (t.columns.length>8 ? '<span class="chip">+'+(t.columns.length-8)+'</span>' : '');
+    return '<div class="tcard"><div class="nm">'+n+'</div><div class="meta">'+t.rowCount.toLocaleString()+' rows · '+t.columns.length+' cols · from '+t.fileName+'</div><div class="cols">'+chips+'</div></div>';
+  }).join('');
+}
+
+/* =========================================================================
+   TABS
+========================================================================= */
+document.getElementById('tabs').addEventListener('click', e=>{
+  const tabEl = e.target.closest('.tab');
+  if(!tabEl || tabEl.classList.contains('locked')) return;
+  selectTab(tabEl.dataset.tab);
+});
+function selectTab(name){
+  document.querySelectorAll('.tab').forEach(t=> t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(p=> p.classList.toggle('show', p.id==='panel-'+name));
+}
+function unlockTab(name){
+  document.querySelector('.tab[data-tab="'+name+'"]').classList.remove('locked');
+}
+document.getElementById('goJoinBtn').addEventListener('click', ()=> selectTab('join'));
+document.getElementById('goChecksBtn').addEventListener('click', ()=> { populateCheckDefaults(); selectTab('checks'); });
+document.getElementById('goDashBtn').addEventListener('click', ()=> { renderDashboard(); selectTab('dash'); });
+
+/* =========================================================================
+   PIPELINE SIGNATURE STRIP
+========================================================================= */
+const PIPE_STEPS = [
+  {k:'import', l:'Import'}, {k:'model', l:'Model'}, {k:'join', l:'Join'},
+  {k:'validate', l:'Validate'}, {k:'score', l:'Score'}
+];
+function updatePipeline(){
+  const tablesLoaded = Object.keys(state.tables).length>0;
+  const joined = !!state.join;
+  const checked = Object.keys(state.scores).length>0;
+  let activeIdx = 0;
+  if(tablesLoaded) activeIdx = 1;
+  if(tablesLoaded) activeIdx = 2; // model done once loaded (cols inferred)
+  if(joined) activeIdx = 3;
+  if(checked) activeIdx = 4;
+  const html = PIPE_STEPS.map((s,i)=>{
+    let cls = '';
+    if(i < activeIdx) cls = 'done';
+    else if(i === activeIdx) cls = 'active';
+    return '<div class="pstep '+cls+'"><div class="pdot"></div><div class="plabel">'+s.l+'</div></div>';
+  }).join('');
+  document.getElementById('pipeline').innerHTML = html;
+}
+updatePipeline();
+
+/* =========================================================================
+   JOIN BUILDER
+========================================================================= */
+function refreshAllSelectors(){
+  const names = Object.keys(state.tables);
+  fillSelect('selTableA', names);
+  fillSelect('selTableB', names);
+  document.getElementById('selTableA').addEventListener('change', ()=> fillSelect('selKeyA', state.tables[document.getElementById('selTableA').value].columns));
+  document.getElementById('selTableB').addEventListener('change', ()=> fillSelect('selKeyB', state.tables[document.getElementById('selTableB').value].columns));
+  if(names.length){
+    fillSelect('selKeyA', state.tables[names[0]].columns);
+    if(names.length>1){ document.getElementById('selTableB').value = names[1]; fillSelect('selKeyB', state.tables[names[1]].columns); }
+    else { fillSelect('selKeyB', state.tables[names[0]].columns); }
+  }
+  unlockTab('join');
+  populateCheckDefaults();
+}
+function fillSelect(id, opts){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.innerHTML = opts.map(o=>'<option value="'+o+'">'+o+'</option>').join('');
+}
+
+document.getElementById('buildJoinBtn').addEventListener('click', ()=>{
+  const tableA = document.getElementById('selTableA').value;
+  const tableB = document.getElementById('selTableB').value;
+  const keyA = document.getElementById('selKeyA').value;
+  const keyB = document.getElementById('selKeyB').value;
+  if(!tableA || !tableB){ return; }
+  state.join = { tableA, tableB, keyA, keyB };
+
+  const sql = 'SELECT a.*, b.*\nFROM ' + qid(tableA) + ' a\nLEFT JOIN ' + qid(tableB) + ' b\n  ON a.' + qid(keyA) + ' = b.' + qid(keyB) + '\nLIMIT 50;';
+  document.getElementById('joinSql').innerHTML = highlightSql(sql);
+  const res = runQuery(sql);
+  renderResultTable('joinResultWrap', res);
+
+  const totalLeft = scalar('SELECT COUNT(*) FROM ' + qid(tableA) + ';');
+  const matched = scalar('SELECT COUNT(*) FROM ' + qid(tableA) + ' a INNER JOIN ' + qid(tableB) + ' b ON a.' + qid(keyA) + ' = b.' + qid(keyB) + ';');
+  document.getElementById('joinMeta').textContent =
+    tableA + ' (' + totalLeft.toLocaleString() + ' rows) LEFT JOIN ' + tableB + ' on ' + keyA + ' = ' + keyB +
+    '  ·  ' + matched.toLocaleString() + ' rows matched, ' + (totalLeft-matched).toLocaleString() + ' unmatched on the left.';
+
+  document.getElementById('joinSqlWrap').style.display = 'block';
+  unlockTab('checks');
+  updatePipeline();
+});
+
+function highlightSql(sql){
+  const kws = ['SELECT','FROM','LEFT JOIN','INNER JOIN','JOIN','ON','WHERE','GROUP BY','HAVING','ORDER BY','AS','AND','OR','LIMIT','SUM','COUNT','CASE','WHEN','THEN','ELSE','END','IS NULL','IS NOT NULL','NOT','GLOB','TRIM','BEGIN','COMMIT'];
+  let out = sql.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  kws.sort((a,b)=>b.length-a.length).forEach(k=>{
+    out = out.replace(new RegExp('\\b'+k+'\\b','g'), '<span class="kw">'+k+'</span>');
+  });
+  return out;
+}
+
+function renderResultTable(containerId, res, limitNote){
+  const el = document.getElementById(containerId);
+  if(!res.columns.length){ el.innerHTML = '<div class="empty">No rows returned.</div>'; return; }
+  let html = '<table class="rtable"><thead><tr>' + res.columns.map(c=>'<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
+  res.rows.slice(0,200).forEach(r=>{
+    html += '<tr>' + r.map(v=> '<td>' + (v===null? '<span style="color:var(--fail)">NULL</span>' : String(v)) + '</td>').join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+/* =========================================================================
+   CHECK DEFAULTS POPULATION
+========================================================================= */
+function populateCheckDefaults(){
+  const names = Object.keys(state.tables);
+  if(!names.length) return;
+  fillSelect('comp_table', names);
+  fillSelect('uniq_table', names);
+  fillSelect('conf_table', names);
+  fillSelect('rel_table', names);
+
+  document.getElementById('comp_table').onchange = ()=>{};
+  document.getElementById('uniq_table').onchange = ()=> fillSelect('uniq_col', state.tables[document.getElementById('uniq_table').value].columns);
+  document.getElementById('conf_table').onchange = ()=> fillSelect('conf_col', state.tables[document.getElementById('conf_table').value].columns);
+
+  fillSelect('uniq_col', state.tables[names[0]].columns);
+  fillSelect('conf_col', state.tables[names[0]].columns);
+
+  if(state.join){
+    const { tableA, tableB, keyA, keyB } = state.join;
+    document.getElementById('integrityHint').textContent =
+      'Will check: ' + tableA + ' LEFT JOIN ' + tableB + ' ON ' + keyA + ' = ' + keyB + ' — rows where the right side is missing.';
+    document.getElementById('consA_lbl').textContent = 'COLUMN IN ' + tableA.toUpperCase() + ' (A)';
+    document.getElementById('consB_lbl').textContent = 'COLUMN IN ' + tableB.toUpperCase() + ' (B)';
+    fillSelect('cons_colA', state.tables[tableA].columns);
+    fillSelect('cons_colB', state.tables[tableB].columns);
+  }
+}
+
+document.getElementById('conf_pattern').addEventListener('change', e=>{
+  document.getElementById('conf_custom_wrap').style.display = (e.target.value==='custom') ? 'block' : 'none';
+});
+
+/* =========================================================================
+   CHECK RUNNERS
+========================================================================= */
+document.querySelectorAll('[data-check]').forEach(btn=>{
+  btn.addEventListener('click', ()=> runCheck(btn.dataset.check));
+});
+
+function scoreBadge(score){
+  let cls = score>=95 ? 'pass' : (score>=80 ? 'warn' : 'fail');
+  let label = score>=95 ? 'PASS' : (score>=80 ? 'REVIEW' : 'FAIL');
+  return '<span class="badge" style="background:var(--'+cls+');color:#06231f;">'+label+'</span>';
+}
+function scoreBlockHTML(score, extraLine){
+  let cls = score>=95 ? 'pass' : (score>=80 ? 'warn' : 'fail');
+  return '<div class="scorebar">' +
+    '<div><div class="scoreval" style="color:var(--'+cls+')">'+score.toFixed(1)+'%</div><div class="scoremeta">'+(extraLine||'')+'</div></div>' +
+    '<div class="barouter"><div class="barinner" style="width:'+score+'%;background:var(--'+cls+')"></div></div>' +
+    scoreBadge(score) +
+  '</div>';
+}
+
+function runCheck(kind){
+  if(kind==='completeness') return checkCompleteness();
+  if(kind==='uniqueness') return checkUniqueness();
+  if(kind==='integrity') return checkIntegrity();
+  if(kind==='conformity') return checkConformity();
+  if(kind==='consistency') return checkConsistency();
+  if(kind==='relevancy') return checkRelevancy();
+}
+
+function checkCompleteness(){
+  const table = document.getElementById('comp_table').value;
+  const cols = state.tables[table].columns;
+  const parts = cols.map(c=> 'SUM(CASE WHEN ' + qid(c) + ' IS NULL OR TRIM(' + qid(c) + ")='' THEN 1 ELSE 0 END) AS " + qid('missing_'+c)).join(',\n  ');
+  const sql = 'SELECT COUNT(*) AS total_rows,\n  ' + parts + '\nFROM ' + qid(table) + ';';
+  const res = runQuery(sql);
+  const row = res.rows[0];
+  const totalRows = row[0];
+  let totalMissing = 0;
+  const colStats = cols.map((c,i)=>{ const m = row[i+1]; totalMissing += m; return {c, m}; });
+  const totalCells = totalRows * cols.length;
+  const score = totalCells ? 100*(1 - totalMissing/totalCells) : 100;
+  state.scores.completeness = { score, label: table };
+
+  let detail = '<table class="rtable"><thead><tr><th>column</th><th>missing</th><th>% missing</th></tr></thead><tbody>' +
+    colStats.map(s=> '<tr><td>'+s.c+'</td><td>'+s.m+'</td><td>'+(totalRows? (100*s.m/totalRows).toFixed(1):'0.0')+'%</td></tr>').join('') +
+    '</tbody></table>';
+
+  document.getElementById('out_completeness').innerHTML =
+    '<div class="sqlbox">'+highlightSql(sql)+'</div>' +
+    scoreBlockHTML(score, totalMissing.toLocaleString()+' missing cells across '+totalRows.toLocaleString()+' rows × '+cols.length+' columns') +
+    '<div class="resultwrap">'+detail+'</div>';
+  updatePipeline(); refreshDashIfOpen();
+}
+
+function checkUniqueness(){
+  const table = document.getElementById('uniq_table').value;
+  const col = document.getElementById('uniq_col').value;
+  const sqlDup = 'SELECT ' + qid(col) + ', COUNT(*) AS dup_count\nFROM ' + qid(table) + '\nGROUP BY ' + qid(col) + '\nHAVING COUNT(*) > 1\nORDER BY dup_count DESC;';
+  const res = runQuery(sqlDup);
+  const totalRows = scalar('SELECT COUNT(*) FROM ' + qid(table) + ';');
+  let dupRowCount = 0;
+  res.rows.forEach(r=> dupRowCount += r[1]);
+  const score = totalRows ? 100*(1 - dupRowCount/totalRows) : 100;
+  state.scores.uniqueness = { score, label: table+'.'+col };
+
+  document.getElementById('out_uniqueness').innerHTML =
+    '<div class="sqlbox">'+highlightSql(sqlDup)+'</div>' +
+    scoreBlockHTML(score, res.rows.length+' duplicate key value(s), '+dupRowCount.toLocaleString()+' affected rows of '+totalRows.toLocaleString()) +
+    '<div class="resultwrap">' + (function(){ const w=document.createElement('div'); renderInto(w,res); return w.innerHTML; })() + '</div>';
+  updatePipeline(); refreshDashIfOpen();
+}
+
+function checkIntegrity(){
+  if(!state.join){ document.getElementById('out_integrity').innerHTML = '<div class="empty">Build a relationship in Tab 2 first.</div>'; return; }
+  const { tableA, tableB, keyA, keyB } = state.join;
+  const sql = 'SELECT a.*\nFROM ' + qid(tableA) + ' a\nLEFT JOIN ' + qid(tableB) + ' b ON a.' + qid(keyA) + ' = b.' + qid(keyB) + '\nWHERE b.' + qid(keyB) + ' IS NULL;';
+  const res = runQuery(sql);
+  const totalLeft = scalar('SELECT COUNT(*) FROM ' + qid(tableA) + ';');
+  const orphans = res.rows.length;
+  const score = totalLeft ? 100*(1 - orphans/totalLeft) : 100;
+  state.scores.integrity = { score, label: tableA+' → '+tableB };
+
+  document.getElementById('out_integrity').innerHTML =
+    '<div class="sqlbox">'+highlightSql(sql)+'</div>' +
+    scoreBlockHTML(score, orphans.toLocaleString()+' orphan row(s) in '+tableA+' with no match in '+tableB+' (of '+totalLeft.toLocaleString()+')') +
+    '<div class="resultwrap" id="tmp_int"></div>';
+  renderResultTable('tmp_int', res);
+  updatePipeline(); refreshDashIfOpen();
+}
+
+function conformityExpr(col, pattern, custom){
+  const c = qid(col);
+  switch(pattern){
+    case 'email': return c + " GLOB '*@*.*'";
+    case 'date_iso': return c + " GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'";
+    case 'numeric': return c + " NOT GLOB '*[^0-9]*'";
+    case 'alpha': return c + " NOT GLOB '*[^A-Za-z]*'";
+    case 'custom': return c + " GLOB '" + (custom||'').replace(/'/g,"''") + "'";
+    default: return '1=1';
+  }
+}
+function checkConformity(){
+  const table = document.getElementById('conf_table').value;
+  const col = document.getElementById('conf_col').value;
+  const pattern = document.getElementById('conf_pattern').value;
+  const custom = document.getElementById('conf_custom').value;
+  const expr = conformityExpr(col, pattern, custom);
+  const sql = 'SELECT COUNT(*) AS total,\n  SUM(CASE WHEN ' + expr + ' THEN 0 ELSE 1 END) AS nonconforming\nFROM ' + qid(table) + '\nWHERE ' + qid(col) + " IS NOT NULL AND TRIM(" + qid(col) + ") <> '';";
+  const res = runQuery(sql);
+  const total = res.rows[0][0], nonconf = res.rows[0][1] || 0;
+  const score = total ? 100*(1 - nonconf/total) : 100;
+  state.scores.conformity = { score, label: table+'.'+col };
+
+  const sampleSql = 'SELECT ' + qid(col) + ' FROM ' + qid(table) + ' WHERE NOT (' + expr + ") AND " + qid(col) + " IS NOT NULL AND TRIM(" + qid(col) + ") <> '' LIMIT 25;";
+  const sample = runQuery(sampleSql);
+
+  document.getElementById('out_conformity').innerHTML =
+    '<div class="sqlbox">'+highlightSql(sql)+'</div>' +
+    scoreBlockHTML(score, nonconf+' of '+total+' non-blank values do not match the expected format') +
+    (sample.rows.length ? '<div class="hint">Sample non-conforming values:</div><div class="resultwrap" id="tmp_conf"></div>' : '');
+  if(sample.rows.length) renderResultTable('tmp_conf', sample);
+  updatePipeline(); refreshDashIfOpen();
+}
+
+function checkConsistency(){
+  if(!state.join){ document.getElementById('out_consistency').innerHTML = '<div class="empty">Build a relationship in Tab 2 first.</div>'; return; }
+  const { tableA, tableB, keyA, keyB } = state.join;
+  const colA = document.getElementById('cons_colA').value;
+  const colB = document.getElementById('cons_colB').value;
+  const sql = 'SELECT a.' + qid(keyA) + ' AS key, a.' + qid(colA) + ' AS value_a, b.' + qid(colB) + ' AS value_b\n' +
+    'FROM ' + qid(tableA) + ' a\nJOIN ' + qid(tableB) + ' b ON a.' + qid(keyA) + ' = b.' + qid(keyB) + '\n' +
+    'WHERE TRIM(a.' + qid(colA) + ') <> TRIM(b.' + qid(colB) + ')\n   OR (a.' + qid(colA) + ' IS NULL) <> (b.' + qid(colB) + ' IS NULL);';
+  const res = runQuery(sql);
+  const matched = scalar('SELECT COUNT(*) FROM ' + qid(tableA) + ' a JOIN ' + qid(tableB) + ' b ON a.' + qid(keyA) + ' = b.' + qid(keyB) + ';');
+  const mismatches = res.rows.length;
+  const score = matched ? 100*(1 - mismatches/matched) : 100;
+  state.scores.consistency = { score, label: colA+' vs '+colB };
+
+  document.getElementById('out_consistency').innerHTML =
+    '<div class="sqlbox">'+highlightSql(sql)+'</div>' +
+    scoreBlockHTML(score, mismatches.toLocaleString()+' mismatch(es) of '+matched.toLocaleString()+' matched rows') +
+    '<div class="resultwrap" id="tmp_cons"></div>';
+  renderResultTable('tmp_cons', res);
+  updatePipeline(); refreshDashIfOpen();
+}
+
+function checkRelevancy(){
+  const table = document.getElementById('rel_table').value;
+  const threshold = parseFloat(document.getElementById('rel_threshold').value) || 0;
+  const cols = state.tables[table].columns;
+  const parts = cols.map(c=> 'ROUND(100.0 * SUM(CASE WHEN ' + qid(c) + ' IS NOT NULL AND TRIM(' + qid(c) + ")<>'' THEN 1 ELSE 0 END) / COUNT(*), 1) AS " + qid('pct_'+c)).join(',\n  ');
+  const sql = 'SELECT\n  ' + parts + '\nFROM ' + qid(table) + ';';
+  const res = runQuery(sql);
+  const row = res.rows[0];
+  const colPct = cols.map((c,i)=> ({c, pct: row[i]}));
+  const lowCount = colPct.filter(x=> x.pct < threshold).length;
+  const score = cols.length ? 100*(1 - lowCount/cols.length) : 100;
+  state.scores.relevancy = { score, label: table };
+
+  let detail = '<table class="rtable"><thead><tr><th>column</th><th>% populated</th><th>status</th></tr></thead><tbody>' +
+    colPct.map(x=> '<tr><td>'+x.c+'</td><td>'+x.pct+'%</td><td>'+(x.pct<threshold? '<span style="color:var(--fail)">low relevancy</span>' : '<span style="color:var(--pass)">ok</span>')+'</td></tr>').join('') +
+    '</tbody></table>';
+
+  document.getElementById('out_relevancy').innerHTML =
+    '<div class="sqlbox">'+highlightSql(sql)+'</div>' +
+    scoreBlockHTML(score, lowCount+' of '+cols.length+' columns below '+threshold+'% population') +
+    '<div class="resultwrap">'+detail+'</div>';
+  updatePipeline(); refreshDashIfOpen();
+}
+
+function renderInto(container, res){
+  if(!res.columns.length){ container.innerHTML = '<div class="empty">No rows returned.</div>'; return; }
+  let html = '<table class="rtable"><thead><tr>' + res.columns.map(c=>'<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
+  res.rows.slice(0,200).forEach(r=>{
+    html += '<tr>' + r.map(v=> '<td>' + (v===null? '<span style="color:var(--fail)">NULL</span>' : String(v)) + '</td>').join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+/* =========================================================================
+   DASHBOARD
+========================================================================= */
+function refreshDashIfOpen(){
+  if(document.getElementById('panel-dash').classList.contains('show')) renderDashboard();
+}
+
+function renderDashboard(){
+  const dims = Object.keys(DIM_LABELS);
+  const have = dims.filter(d=> state.scores[d]);
+  document.getElementById('dashSub').textContent = have.length
+    ? have.length + ' of 6 dimensions checked.'
+    : 'Run checks in the previous tab to populate this dashboard.';
+
+  const overallEl = document.getElementById('overallScore');
+  if(have.length){
+    const avg = have.reduce((s,d)=> s + state.scores[d].score, 0) / have.length;
+    overallEl.textContent = avg.toFixed(0) + '%';
+    overallEl.style.color = avg>=95 ? 'var(--pass)' : (avg>=80 ? 'var(--warn)' : 'var(--fail)');
+  } else {
+    overallEl.textContent = '—';
+    overallEl.style.color = 'var(--text)';
+  }
+
+  document.getElementById('dimList').innerHTML = dims.map(d=>{
+    const s = state.scores[d];
+    const score = s ? s.score : 0;
+    const cls = !s ? '' : (score>=95?'pass':(score>=80?'warn':'fail'));
+    return '<div class="dimrow">' +
+      '<div class="dname">'+DIM_LABELS[d]+'</div>' +
+      '<div class="barouter"><div class="barinner" style="width:'+(s?score:0)+'%;background:'+(s? 'var(--'+cls+')':'#2A323F')+'"></div></div>' +
+      '<div class="dval">'+(s? score.toFixed(0)+'%' : '—')+'</div>' +
+      '</div>';
+  }).join('');
+
+  drawRadar(dims, dims.map(d=> state.scores[d] ? state.scores[d].score : 0), have);
+}
+
+function drawRadar(dims, values, have){
+  const cx=160, cy=140, maxR=105;
+  const n = dims.length;
+  const svg = document.getElementById('radar');
+  let html = '';
+  // grid rings
+  [0.25,0.5,0.75,1].forEach(f=>{
+    let pts = [];
+    for(let i=0;i<n;i++){
+      const ang = (Math.PI*2*i/n) - Math.PI/2;
+      pts.push((cx+maxR*f*Math.cos(ang)).toFixed(1)+','+(cy+maxR*f*Math.sin(ang)).toFixed(1));
+    }
+    html += '<polygon points="'+pts.join(' ')+'" fill="none" stroke="#1f2733" stroke-width="1"/>';
+  });
+  // axes + labels
+  for(let i=0;i<n;i++){
+    const ang = (Math.PI*2*i/n) - Math.PI/2;
+    const x2 = cx+maxR*Math.cos(ang), y2 = cy+maxR*Math.sin(ang);
+    html += '<line x1="'+cx+'" y1="'+cy+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="#1f2733" stroke-width="1"/>';
+    const lx = cx+(maxR+26)*Math.cos(ang), ly = cy+(maxR+18)*Math.sin(ang);
+    html += '<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" fill="#8B96A5" font-size="11" font-family="Space Grotesk" text-anchor="middle">'+DIM_LABELS[dims[i]]+'</text>';
+  }
+  // data polygon
+  let dpts = [];
+  for(let i=0;i<n;i++){
+    const ang = (Math.PI*2*i/n) - Math.PI/2;
+    const r = maxR*(values[i]/100);
+    dpts.push((cx+r*Math.cos(ang)).toFixed(1)+','+(cy+r*Math.sin(ang)).toFixed(1));
+  }
+  if(have.length){
+    html += '<polygon points="'+dpts.join(' ')+'" fill="#5EEAD4" fill-opacity="0.18" stroke="#5EEAD4" stroke-width="2"/>';
+    for(let i=0;i<n;i++){
+      const [x,y] = dpts[i].split(',');
+      html += '<circle cx="'+x+'" cy="'+y+'" r="3.2" fill="#5EEAD4"/>';
+    }
+  }
+  svg.innerHTML = html;
+}
+
+renderDashboard();
+</script>
+</body>
+</html>
